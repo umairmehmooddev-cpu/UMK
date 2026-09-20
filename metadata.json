@@ -1,5 +1,5 @@
 {
-  "name": "Audio Transcriber",
-  "description": "Transcribe MP3 audio files into text using Gemini AI.",
+  "name": "UMK Product Bot",
+  "description": "Build digital product packs, review them, then follow the upload checklist for Etsy and Gumroad. Also transcribe audio with Gemini.",
   "requestFramePermissions": []
 }
