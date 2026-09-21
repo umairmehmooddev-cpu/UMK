@@ -2,8 +2,6 @@ import {useRef, useState} from 'react';
 import {Check, Copy, FileAudio, Loader2, RefreshCw, Upload} from 'lucide-react';
 import {GoogleGenAI} from '@google/genai';
 
-const ai = new GoogleGenAI({apiKey: process.env.GEMINI_API_KEY});
-
 export default function Transcriber() {
   const [file, setFile] = useState<File | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -31,6 +29,15 @@ export default function Transcriber() {
     setTranscription('');
 
     try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        setError('Gemini API key is not configured. Set GEMINI_API_KEY in your .env file.');
+        setIsTranscribing(false);
+        return;
+      }
+
+      const ai = new GoogleGenAI({apiKey});
+
       const reader = new FileReader();
       reader.readAsDataURL(file);
 
