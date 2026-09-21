@@ -23,7 +23,10 @@ Without a Gemini key, the product bot still builds a complete template pack you 
 
 ## Product bot flow
 
-1. Choose pack type (podcast, meeting, student, or custom) and a niche.
-2. Click **Build pack for review**.
-3. Open every file, edit if needed, tick the review boxes.
-4. Only then does it ask you to download the zip and upload it yourself.
+1. Choose a pack type and click **Find ideas** (demand patterns, plus Gemini if a key is set).
+2. The uniqueness gate blocks trademarks, celebrity names, and near-copies of packs you already made.
+3. Click **Build pack for review**.
+4. Open every file, edit if needed, tick the review boxes (including “not a copy”).
+5. Only then does it ask you to download the zip and upload it yourself.
+
+It does not scrape Etsy or other shops. Confirm demand on those sites before you buy ads.

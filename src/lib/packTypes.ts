@@ -28,6 +28,36 @@ export type PackBrief = {
   notes: string;
 };
 
+export type TrendIdea = {
+  id: string;
+  kind: PackKind;
+  title: string;
+  niche: string;
+  audience: string;
+  price: string;
+  whyItMightSell: string;
+  uniqueAngle: string;
+  source: 'pattern' | 'ai';
+};
+
+export type UniquenessIssue = {
+  level: 'block' | 'warn';
+  message: string;
+};
+
+export type UniquenessReport = {
+  ok: boolean;
+  score: number;
+  issues: UniquenessIssue[];
+};
+
+export type CatalogEntry = {
+  slug: string;
+  productName: string;
+  niche: string;
+  etsyTitle: string;
+};
+
 export const PACK_KIND_LABELS: Record<PackKind, string> = {
   podcast: 'Podcast / show-notes pack',
   meeting: 'Meeting notes pack',

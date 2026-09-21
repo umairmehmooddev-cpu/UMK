@@ -8,12 +8,15 @@ import {
   Loader2,
   Package,
   RefreshCw,
+  Search,
   Upload,
 } from 'lucide-react';
 import {downloadPackZip} from '../lib/downloadZip';
 import {generateDigitalPack} from '../lib/generatePack';
-import type {DigitalPack, PackBrief, PackKind} from '../lib/packTypes';
+import {researchTrendIdeas} from '../lib/researchTrends';
+import type {DigitalPack, PackBrief, PackKind, TrendIdea} from '../lib/packTypes';
 import {PACK_KIND_LABELS} from '../lib/packTypes';
+import {evaluateUniqueness, loadCatalog, saveCatalogEntry} from '../lib/uniqueness';
 
 type Step = 'brief' | 'review' | 'upload';
 
@@ -33,6 +36,7 @@ const REVIEW_ITEMS = [
   {id: 'opened', label: 'I opened every file and it makes sense'},
   {id: 'specific', label: 'The niche and audience are specific enough to sell'},
   {id: 'legal', label: 'No brand names, celebrities, or logos I do not own'},
+  {id: 'unique', label: 'This is my own angle, not a copy of someone else’s listing'},
   {id: 'price', label: 'I am happy with the price'},
   {id: 'pay', label: 'I would pay this price for this pack'},
 ];
@@ -77,8 +81,11 @@ export default function PackFactory() {
   const [uploadChecks, setUploadChecks] = useState<Record<string, boolean>>(saved.uploadChecks);
   const [revisionNotes, setRevisionNotes] = useState('');
   const [busy, setBusy] = useState(false);
+  const [researching, setResearching] = useState(false);
+  const [ideas, setIdeas] = useState<TrendIdea[]>([]);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
+  const uniqueness = useMemo(() => evaluateUniqueness(brief, loadCatalog()), [brief]);
 
   useEffect(() => {
     localStorage.setItem(
@@ -96,7 +103,35 @@ export default function PackFactory() {
     setTimeout(() => setCopied(''), 1600);
   };
 
+  const runResearch = async () => {
+    setResearching(true);
+    setError('');
+    try {
+      setIdeas(await researchTrendIdeas(brief.kind));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Could not research ideas.';
+      setError(message);
+    } finally {
+      setResearching(false);
+    }
+  };
+
+  const pickIdea = (idea: TrendIdea) => {
+    setBrief({
+      kind: idea.kind,
+      niche: idea.niche,
+      audience: idea.audience,
+      price: idea.price,
+      notes: idea.uniqueAngle,
+    });
+  };
+
   const buildPack = async (notes?: string) => {
+    const report = evaluateUniqueness(brief, loadCatalog());
+    if (!report.ok) {
+      setError('Fix the uniqueness blocks before I build a pack.');
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -129,8 +164,8 @@ export default function PackFactory() {
         <p className="text-sm font-medium text-indigo-600">Product bot</p>
         <h1 className="text-4xl font-semibold tracking-tight text-neutral-900">Digital pack factory</h1>
         <p className="text-neutral-500 max-w-2xl">
-          The bot builds the pack. You review it. Only after you approve does it ask you to upload.
-          It will not publish to Etsy or Gumroad for you.
+          Research a specific angle, block copies and trademarks, build the pack, then you review and
+          upload. It will not scrape other shops or publish for you.
         </p>
       </header>
 
@@ -156,11 +191,53 @@ export default function PackFactory() {
       {step === 'brief' && (
         <section className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-6 sm:p-8 space-y-6">
           <BotLine>
-            Tell me the pack. I will generate the files, listing copy, pins, and a review checklist.
-            {process.env.GEMINI_API_KEY
-              ? ' Gemini will write a custom pack.'
-              : ' No Gemini key is set, so I will build a complete template pack you can still edit and sell.'}
+            First I look for a specific buyer and job — not a clone of a popular listing. Then I
+            build files. I do not scrape Etsy. Ideas come from demand patterns
+            {process.env.GEMINI_API_KEY ? ' plus Gemini' : ''}
+            , then a uniqueness check against trademarks and packs you already made.
           </BotLine>
+
+          <div className="rounded-2xl border border-neutral-200 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="font-medium text-neutral-900">Research trending angles</p>
+              <button
+                type="button"
+                disabled={researching}
+                onClick={runResearch}
+                className="py-2 px-3 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-sm font-medium rounded-xl inline-flex items-center gap-2"
+              >
+                {researching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                {researching ? 'Researching…' : 'Find ideas'}
+              </button>
+            </div>
+            {ideas.length === 0 ? (
+              <p className="text-sm text-neutral-500">
+                Pick a pack type, then find ideas. Confirm demand on Etsy or Pinterest before you
+                spend on ads — this is not a live marketplace scrape.
+              </p>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-3">
+                {ideas.map((idea) => (
+                  <button
+                    key={idea.id}
+                    type="button"
+                    onClick={() => pickIdea(idea)}
+                    className="text-left rounded-xl border border-neutral-200 hover:border-indigo-400 p-3 space-y-1"
+                  >
+                    <p className="font-medium text-neutral-900">{idea.title}</p>
+                    <p className="text-xs uppercase tracking-wide text-indigo-600">
+                      {PACK_KIND_LABELS[idea.kind]} · {idea.source === 'ai' ? 'Gemini' : 'pattern'}
+                    </p>
+                    <p className="text-sm text-neutral-600">{idea.whyItMightSell}</p>
+                    <p className="text-sm text-neutral-800">
+                      <span className="font-medium">Unique: </span>
+                      {idea.uniqueAngle}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="grid sm:grid-cols-2 gap-3">
             {KINDS.map((kind) => (
@@ -233,18 +310,46 @@ export default function PackFactory() {
             />
           </label>
 
+          <div
+            className={`rounded-2xl border p-4 space-y-2 ${
+              uniqueness.ok ? 'border-neutral-200 bg-neutral-50' : 'border-red-200 bg-red-50'
+            }`}
+          >
+            <p className="font-medium text-neutral-900">
+              Uniqueness score {uniqueness.score}/100 {uniqueness.ok ? '— can build' : '— blocked'}
+            </p>
+            {uniqueness.issues.length === 0 ? (
+              <p className="text-sm text-neutral-600">
+                No trademark or clone flags on this brief. Still open a search for the niche and
+                make sure you are not rewriting someone else’s listing.
+              </p>
+            ) : (
+              <ul className="text-sm space-y-1">
+                {uniqueness.issues.map((issue) => (
+                  <li
+                    key={issue.message}
+                    className={issue.level === 'block' ? 'text-red-800' : 'text-amber-800'}
+                  >
+                    {issue.level === 'block' ? 'Block: ' : 'Warn: '}
+                    {issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {error && (
             <div className="p-4 bg-red-50 text-red-700 rounded-xl border border-red-200 text-sm">{error}</div>
           )}
 
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !uniqueness.ok}
             onClick={() => buildPack()}
-            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium rounded-xl flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-neutral-300 text-white font-medium rounded-xl flex items-center justify-center gap-2"
           >
             {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : <Package className="w-5 h-5" />}
-            {busy ? 'Building pack…' : 'Build pack for review'}
+            {busy ? 'Building pack…' : uniqueness.ok ? 'Build pack for review' : 'Fix uniqueness blocks first'}
           </button>
         </section>
       )}
@@ -275,6 +380,9 @@ export default function PackFactory() {
               </button>
             </div>
             <p className="text-neutral-700">{pack.shortPitch}</p>
+            <p className="text-sm text-neutral-500">
+              Saved to your local catalog so the next research pass can reject a near-copy of this pack.
+            </p>
           </div>
 
           <div className="grid lg:grid-cols-[220px_1fr] gap-4">
@@ -347,7 +455,15 @@ export default function PackFactory() {
               <button
                 type="button"
                 disabled={!reviewReady}
-                onClick={() => setStep('upload')}
+                onClick={() => {
+                  saveCatalogEntry({
+                    slug: pack.slug,
+                    productName: pack.productName,
+                    niche: pack.niche,
+                    etsyTitle: pack.etsyTitle,
+                  });
+                  setStep('upload');
+                }}
                 className="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-neutral-300 text-white font-medium rounded-xl inline-flex items-center justify-center gap-2"
               >
                 <Check className="w-5 h-5" />
