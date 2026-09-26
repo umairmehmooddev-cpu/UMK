@@ -1,20 +1,46 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# WORKBOOKOS
 
-# Run and deploy your AI Studio app
+Create, Deliver & Measure Interactive Workbooks.
 
-This contains everything you need to run your app locally.
+This repository is the application shell: Next.js App Router, TypeScript strict, Tailwind CSS, and ESLint. It does not include accounts, workbooks, import, AI, publishing, or billing.
 
-View your app in AI Studio: https://ai.studio/apps/2b2d0fbd-ae46-4f64-b44c-570cb59be652
+The previous Vite audio transcriber was removed. It called Gemini from the browser with `GEMINI_API_KEY` inlined by Vite. That applet was not WORKBOOKOS, and the shell does not replace it with a transcription proxy.
 
-## Run Locally
+## Prerequisites
 
-**Prerequisites:**  Node.js
+- Node.js 22
+- npm
 
+## Local setup
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+```bash
+npm ci
+cp .env.example .env.local
+npm run dev
+```
+
+The dev server listens on port 3000. `NEXT_PUBLIC_APP_URL` is optional and defaults to `http://localhost:3000`.
+
+Server-only secrets must not use the `NEXT_PUBLIC_` prefix. Do not add `GEMINI_API_KEY` until a later server adapter reads it. Client Components must not import a provider SDK.
+
+## Scripts
+
+| Script | Command | Purpose |
+| --- | --- | --- |
+| `dev` | `next dev` | Development server |
+| `lint` | `eslint` | ESLint (`eslint-config-next`) |
+| `typecheck` | `next typegen && tsc --noEmit` | Generate route types, then strict `tsc` |
+| `build` | `next build` | Production build |
+| `start` | `next start` | Serve the production build |
+
+Prettier is not installed. Formatting stays with the editor and ESLint so the shell does not add a second formatter.
+
+## Layout
+
+`src/app` holds routes. `src/components` holds reusable UI. `src/features` is an empty registry for later product UI. `src/lib/public-env.ts` is the only environment module Client Components may import. `src/server/*` is marked `server-only` and is where auth, data, documents, workbooks, AI, billing, and publishing will live. Those modules currently export a purpose statement and do not call external services.
+
+`GET /api/health` returns `{ "status": "ok" }` and no environment data.
+
+## Not in this build
+
+Auth, database, AI calls, the workbook editor, PDF export, product analytics, and billing. See `docs/ROADMAP.md`.
