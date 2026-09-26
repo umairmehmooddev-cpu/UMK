@@ -1,10 +1,10 @@
 # Security
 
-Status: threat model and required controls. The controls are not implemented. The current applet violates the key-isolation rule below.
+Status: threat model and required controls. The shell implements secret-prefix rejection and removes the client SDK. Tenant authorization, upload handling, and the credit ledger are not implemented yet.
 
 ## Current exposure
 
-`vite.config.ts` does this:
+`main` before the shell had this in `vite.config.ts`:
 
 ```ts
 define: {
@@ -12,13 +12,13 @@ define: {
 },
 ```
 
-`src/App.tsx` then runs `new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })` in the browser and sends audio bytes to Gemini from the client.
+`src/App.tsx` then ran `new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })` in the browser. Anyone who could load that JavaScript could read the key. The shell deletes that app. It does not install `@google/genai` and does not define an env map in `next.config.ts`.
 
-Anyone who can load the built JavaScript can read that key and spend the account. This is the highest-severity defect in the repo. Phase 1 removes the `define` and the client SDK call. Until that ships, do not put a production key in `.env.local` and do not deploy this applet as WORKBOOKOS.
+`.env.example` on the shell sets `NEXT_PUBLIC_APP_URL` only. A scan of git history during Phase 0 did not find a long embedded key literal. `.gitignore` ignores `.env*` except `.env.example`. That ignore rule stays.
 
-`.env.example` contains the placeholder `MY_GEMINI_API_KEY`, not a live key. A scan of git history during this assessment did not find a long embedded key literal. `.gitignore` ignores `.env*` except `.env.example`. That ignore rule is necessary and stays.
+`src/server/env.ts` throws if a `NEXT_PUBLIC_` variable name looks like a secret (key, token, password, Gemini, database). That check runs when the root layout module loads. It does not scan values, and it does not print them.
 
-The unmerged pack-factory branch (PR #1) repeats the same client-side `GoogleGenAI` construction. Merging it would keep the defect.
+The unmerged pack-factory branch (PR #1) still constructs `GoogleGenAI` in the browser. Merging it would bring the defect back.
 
 No authentication exists, so there is also no authorization. That is acceptable only while the app holds no tenant data.
 
@@ -38,8 +38,8 @@ Threat: a key in the client bundle, a source map, a log line, or an error respon
 
 Controls:
 
-- `GEMINI_API_KEY` is read only in the server Gemini adapter.
-- Vite `define` must not mention it. No `VITE_GEMINI_API_KEY`.
+- `GEMINI_API_KEY` is read only in a future server adapter under `src/server/ai`.
+- `next.config.ts` must not define an `env` map. No `NEXT_PUBLIC_` or `VITE_` provider key.
 - The client does not import `@google/genai`.
 - Logs and HTTP errors may include a provider request id. They must not include the key, the Authorization header, or the full prompt plus document body.
 - Rotate the key if it was ever injected into a deployed bundle or shared in a chat log. This assessment did not find a committed live key and did not verify deployed bundles.
@@ -120,7 +120,7 @@ Controls:
 - Validate body, query, and params with a schema. Reject unknown critical fields rather than passing a raw object into the domain.
 - SQL uses parameters. File paths are generated on the server.
 - No `child_process` with user strings.
-- Dependencies install from the lockfile (`npm ci`) once it exists. `better-sqlite3` is a native module that is unused; do not build features on it.
+- Dependencies install from the lockfile (`npm ci`). Do not add `better-sqlite3`. PostgreSQL arrives with persistence.
 - Errors returned to the client are a code and a short message. Stack traces stay in server logs.
 
 ## Audit

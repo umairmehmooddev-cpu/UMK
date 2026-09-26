@@ -1,5 +1,0 @@
-{
-  "name": "Audio Transcriber",
-  "description": "Transcribe MP3 audio files into text using Gemini AI.",
-  "requestFramePermissions": []
-}

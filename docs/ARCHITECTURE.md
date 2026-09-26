@@ -1,27 +1,25 @@
 # Architecture
 
-Status: decision record. No application code in this change. Nothing here is implemented or tested.
+Status: decision record. The app on this branch is a Next.js shell. Product features are not implemented.
 
 ## Current repository
 
-Checked-out baseline is `main` at `7cafe90` ("feat: Implement audio transcription with Gemini AI"). Remote: `umairmehmooddev-cpu/UMK`. Default branch: `main`.
+Remote: `umairmehmooddev-cpu/UMK`. Default branch: `main`.
 
-This is a Google AI Studio applet, not a multi-user SaaS. The product name in-repo is "Audio Transcriber" (`metadata.json`). WORKBOOKOS does not exist in code yet.
+`main` at `7cafe90` was a Google AI Studio audio transcriber (Vite, React, Tailwind). `vite.config.ts` inlined `GEMINI_API_KEY` into the browser, and `src/App.tsx` constructed `@google/genai` on the client. Express, `dotenv`, and `better-sqlite3` were declared and unused. That applet was removed when the shell was created. It was not WORKBOOKOS, and it was not kept behind a transcription proxy.
+
+The shell is Next.js 16 App Router, React 19, TypeScript `strict`, Tailwind CSS 4, and ESLint (`eslint-config-next`). npm is the package manager, with `package-lock.json` committed from the shell install. There is still no database, auth, AI SDK, Dockerfile, or CI workflow.
 
 | Fact | Evidence |
 | --- | --- |
-| Package manager | npm. `package.json` is present. `main` has no lockfile. No pnpm, Yarn, or Bun lockfile. |
-| Web stack | Vite 6, React 19, TypeScript ~5.8, Tailwind CSS 4 (`@tailwindcss/vite`). Entry: `index.html` → `src/main.tsx` → `src/App.tsx`. |
-| UI libraries present | `lucide-react`, `motion`. Used only by the transcriber screen (`lucide-react`). `motion` is unused. |
-| Server libraries present | `express`, `dotenv`, `better-sqlite3`, `tsx`, `@types/express`. No server entry file. No import of these modules under `src/`. |
-| AI | `@google/genai` is constructed in the browser in `src/App.tsx`. Model string in that call: `gemini-3-flash-preview`. |
-| Secret handling | `vite.config.ts` loads env and `define`s `process.env.GEMINI_API_KEY` into the client bundle. README tells the developer to put the key in `.env.local`. |
-| TypeScript bar | `tsconfig.json` has no `strict`. `allowJs` is true. `noEmit` is true. `src/App.tsx` uses `any` on caught errors. `lint` script is `tsc --noEmit`. No ESLint. No test script. |
-| Data | No schema, no migrations, no queries. `better-sqlite3` is an unused dependency. |
-| Auth | None. |
+| Package manager | npm. `package-lock.json` is produced by the shell. |
+| App | `next` App Router under `src/app`. Production command is `next build`. |
+| TypeScript | `strict: true` in `tsconfig.json`. `npm run typecheck` runs `next typegen && tsc --noEmit`. |
+| Lint | `eslint.config.mjs` uses `eslint-config-next` and bans `@google/genai`. |
+| Secrets | `src/lib/public-env.ts` reads `NEXT_PUBLIC_APP_URL` only. `src/server/env.ts` rejects `NEXT_PUBLIC_` names that look like secrets. `next.config.ts` does not define an `env` map. |
+| Server modules | `src/server/*` imports `server-only`. They export purpose markers. They do not open a database or call a model. |
+| Health | `GET /api/health` returns `{ "status": "ok" }`. |
 | Deploy artifacts | No Dockerfile, no `vercel.json` / `fly.toml` / `render.yaml`, no `.github` workflows. |
-| Hosting comments | `.env.example` says AI Studio injects `GEMINI_API_KEY` from its secrets panel and injects `APP_URL` as the Cloud Run service URL. `vite.config.ts` disables HMR when `DISABLE_HMR=true` (AI Studio). Dev script binds `0.0.0.0:3000`. |
-| Install state on this assessment | `node_modules` is absent. Dependencies were not installed. |
 
 ### Unmerged parallel work
 
@@ -29,69 +27,57 @@ Draft PR #1 (`cursor/digital-pack-factory-0f94`, "Add a digital pack bot") is no
 
 That branch is a different product. It is not the WORKBOOKOS baseline. Do not merge it in order to start this SaaS. Leave PR #1 untouched unless a later instruction explicitly says otherwise.
 
-### What was not run
-
-`npm install`, typecheck, lint, test, and build were not run. There is no installed toolchain and no test script. This document does not claim the transcriber starts, builds, or transcribes.
+Phase 0 did not install dependencies or run the toolchain. The shell slice does. Command results belong in the shell pull request, not as a standing claim in this file.
 
 ## Decisions
 
-These keep the stack that is already declared. They correct the places where that applet cannot host a multi-user product.
+Phase 0 recommended keeping Vite and adding Express, because those libraries were already declared. The user overrode that recommendation before the shell was written. D1, D3, D4, and D10 below are the override. D2 and D5–D9 and D11 still stand.
 
 | ID | Decision | Consequence |
 | --- | --- | --- |
-| D1 | Web UI stays Vite + React + TypeScript + Tailwind in this package. | Do not introduce Next.js or a second frontend framework. |
-| D2 | npm is the package manager. | The first implementation commit that installs dependencies adds `package-lock.json`. |
-| D3 | One Node package, two entrypoints: existing Vite client and a new Express server. | No monorepo and no npm workspaces until a boundary actually needs a separate deployable. |
-| D4 | Express is the HTTP API. `dotenv` loads server env. `tsx` may run the server in development. | These are already dependencies. Do not add a second HTTP framework. |
-| D5 | The browser is not a trusted tier. | The UI calls only this API. It never imports `@google/genai` and never sees a provider key. |
-| D6 | PostgreSQL is the system of record when persistence starts. | `better-sqlite3` stays unused. It is a single-file, single-writer engine and cannot back multiple Cloud Run instances. Do not import it. |
-| D7 | AI providers sit behind a server-side port. The first adapter is Gemini, using the existing `@google/genai` dependency, inside the server process only. | Swapping providers later does not change the UI. |
+| D1 | The application is Next.js App Router (Next 16), React, TypeScript, and Tailwind in one package. | The Vite client and Express server are not the architecture. Do not add them back. |
+| D2 | npm is the package manager. | `package-lock.json` is committed. Use `npm ci` after that. |
+| D3 | One Next.js app. Server work lives in `src/server` and in Route Handlers under `src/app`. | No monorepo and no second HTTP framework. |
+| D4 | Route Handlers and Server Components are the server. `server-only` marks modules the client must not import. | Do not add Express, `dotenv`, or a separate API process for the shell. |
+| D5 | The browser is not a trusted tier. | Client Components never import `@google/genai` and never see a provider key. ESLint rejects that import. |
+| D6 | PostgreSQL is the system of record when persistence starts. | `better-sqlite3` was removed with the applet. Do not add it back. |
+| D7 | AI providers sit behind a server-side port. The shell does not install a provider SDK. The first adapter may be Gemini later, and it will live under `src/server/ai`. | The UI never talks to a provider. |
 | D8 | Money and credits are server state. A payment-provider adapter is a later plug-in. | The client never decides a balance, a price, or an entitlement. |
 | D9 | MVP tenancy is one user owning one workspace. Projects, workbooks, and brand kits belong to that workspace. | Schema may allow more workspaces later. Agency trees, shared editing, and SSO are out of scope. |
-| D10 | Marketing pages that must rank are prerendered HTML served by the Node process. The logged-in app can stay a client-rendered SPA. | Meets SEO without abandoning Vite. |
+| D10 | Marketing pages that must rank are Server Components (or static HTML from the App Router). The shell homepage is `noindex` until that slice exists. | SEO does not require a second framework. |
 | D11 | Published workbooks are immutable snapshots. Editing a draft does not change a URL that was already shared. | Analytics and public pages read the snapshot, not the live draft. |
 
 ## Boundaries
 
 ```
-browser (Vite/React)
-  marketing pages, auth screens, dashboard, editor, public workbook player
-  → HTTPS JSON to our API only
+browser
+  Server Components render HTML
+  Client Components hold interaction only, and receive serializable props
+  → no provider SDK, no secret env
 
-server (Express)
-  session, validation, authorization, orchestration, audit
-  → domain functions
-  → AiProvider port
-  → billing/credits ledger
-  → object storage for uploads and exports
-  → PostgreSQL
+Next.js server (this process)
+  src/app routes and Route Handlers
+  src/server modules (server-only)
+  → domain policies, when those slices exist
+  → AiProvider port (not installed)
+  → billing/credits ledger (not installed)
+  → object storage for uploads and exports (not installed)
+  → PostgreSQL (not installed)
 
-domain
-  pure TypeScript policies and types
-  no Express, no Gemini SDK, no SQL driver
-
-AiProvider port
-  analyze(source) / generateWorkbook(brief)
-  Gemini adapter is the first implementation
-
-billing/credits
-  plans, entitlements, append-only ledger
-  payment adapter (not chosen) only grants or renews credits
-
-publishing
-  snapshot + public id + sanitized web view
-  PDF export is a server job over the same snapshot
+src/lib/public-env.ts
+  NEXT_PUBLIC_APP_URL only
 ```
 
-Suggested layout when implementation starts (not created now):
+Layout in the shell (chosen over a top-level `server/` folder so App Router conventions stay intact):
 
-- `src/` — web client. Existing files stay until a shell replaces them.
-- `server/http/` — routes, authn middleware, request schemas.
-- `server/domain/` — workbook, workspace, publish, credits policies.
-- `server/ai/` — `AiProvider` and adapters.
-- `server/db/` — migrations and queries, introduced with Phase 2.
+- `src/app` — routes, root layout, `GET /api/health`.
+- `src/components` — reusable UI (header, main, footer, boundary list). No `"use client"` yet: the shell has no browser state.
+- `src/features` — empty feature registry for later product UI.
+- `src/lib` — client-safe helpers. Today that is public env only.
+- `src/server/{auth,db,documents,workbooks,templates,brand,ai,publishing,analytics,billing,security}` — one purpose marker each. No I/O.
+- `src/types` — shared boundary types with no secrets.
 
-The domain module must be callable from tests without a listening port or a live model.
+Domain functions, when they exist, stay free of Next.js request objects so tests can call them without a listening port or a live model. The shell does not pretend those functions exist.
 
 ## Data ownership
 
@@ -137,9 +123,9 @@ type AiProvider = {
 };
 ```
 
-`Analysis` and `WorkbookDraft` are domain types, not Gemini response objects. The Gemini adapter is the only file allowed to import `@google/genai`. Provider errors are mapped to our error type before they cross the HTTP boundary. Document text is untrusted input to the model (see SECURITY.md). The port does not take an API key from the request.
+`Analysis` and `WorkbookDraft` are domain types, not provider response objects. When an adapter is added, it is the only file allowed to import a provider SDK, and it lives under `src/server/ai`. Provider errors are mapped to our error type before they cross the HTTP boundary. Document text is untrusted input to the model (see SECURITY.md). The port does not take an API key from the request.
 
-Phase 1 does not call this port. The port arrives with the first AI feature.
+The shell does not call this port and does not install `@google/genai`.
 
 ## Billing and credits
 
@@ -165,26 +151,26 @@ Default robots policy: `noindex`. The owner can opt a snapshot into indexing whe
 
 ## Deployment constraint
 
-The repo comments assume AI Studio on Cloud Run, with secrets injected into the app environment. That host is acceptable for a later container. The current injection pattern is not acceptable: AI Studio's client bundle must not receive `GEMINI_API_KEY`.
+`main` assumed AI Studio on Cloud Run, with `GEMINI_API_KEY` injected into the applet. That injection path was removed with the Vite app. A later container can still run on Cloud Run or any Node host. The process is `next start` after `next build`.
 
 Target shape, when deployment is built:
 
-- One container. Express serves `/api/*` and the built client assets.
-- `GEMINI_API_KEY`, database URL, and session secret exist only in the server environment.
-- `APP_URL` is a public origin used for links and cookies, still server-configured.
-- Managed PostgreSQL (Cloud SQL if the host stays Cloud Run). The container disk is not the database.
-- No Kubernetes, no multi-region, no AI Studio applet runtime as a dependency of the product.
+- One Node process serving the Next.js app.
+- `GEMINI_API_KEY`, database URL, and session secret exist only in the server environment, without a `NEXT_PUBLIC_` prefix, and without a `next.config.ts` `env` entry.
+- `NEXT_PUBLIC_APP_URL` is the public origin used for metadata. It is not a secret.
+- Managed PostgreSQL. The container disk is not the database.
+- No Kubernetes, no multi-region, no AI Studio applet runtime.
 
-There is no deploy pipeline today. Do not claim Cloud Run is already wired.
+There is no deploy pipeline today. Do not claim a host is already wired.
 
 ## Explicitly deferred
 
 Marketplace, enterprise SSO, agency hierarchy, integration marketplace, native mobile apps, realtime collaboration, template marketplace, CRM, LMS, crypto, affiliate infrastructure.
 
-Also deferred inside the architecture: a second AI vendor, a payment-provider implementation, custom domains, offline mode, and any use of `better-sqlite3` as the system of record.
+Also deferred inside the architecture: a second AI vendor, a payment-provider implementation, custom domains, offline mode, Express, and `better-sqlite3`.
 
-## First implementation slice
+## Shell slice
 
-Phase 1 (see ROADMAP.md) only establishes the trust boundary: strict TypeScript, a lockfile, an Express process with `GET /api/health`, and removal of the Vite `define` that inlines `GEMINI_API_KEY`. No workbook tables, no auth, no model calls.
+The first implementation slice is this Next.js shell (see ROADMAP.md Phase 1). It replaces the transcriber, turns on strict TypeScript and ESLint, and reserves server modules. It does not add workbook tables, auth, or model calls.
 
-The transcriber UI is a prototype to retire. Until it is removed, it must not call Gemini from the browser. Do not extend it into WORKBOOKOS.
+The next product slice is Phase 2: account and tenancy.

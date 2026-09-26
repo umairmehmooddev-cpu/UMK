@@ -1,8 +1,16 @@
 node_modules/
+.pnp
+.pnp.*
+coverage/
+.next/
+out/
 build/
 dist/
-coverage/
 .DS_Store
 *.log
 .env*
 !.env.example
+.vercel
+*.tsbuildinfo
+*.pem
+next-env.d.ts
